@@ -8,42 +8,15 @@ Produces the same telemetry output shape as:
 import functools
 import time
 import logging
-import traceback
 from typing import Any, Dict, Optional
 from opentelemetry.trace import StatusCode
 
 logger = logging.getLogger(__name__)
 
-
 # =============================================================
-#  BASIC TELEMETRY RESOLUTION
+#  UNIFIED TRACE EXECUTION TEMPLATE
 # =============================================================
-def _resolve_telemetry(self_or_fn, fn=None):
-    """Robust telemetry resolver used across SDK."""
-    try:
-        if self_or_fn is not None and hasattr(self_or_fn, "_telemetry"):
-            return getattr(self_or_fn, "_telemetry")
-    except Exception:
-        pass
-
-    if fn and hasattr(fn, "_telemetry"):
-        return getattr(fn, "_telemetry")
-
-    if fn and hasattr(fn, "__wrapped__") and hasattr(fn.__wrapped__, "_telemetry"):
-        return getattr(fn.__wrapped__._telemetry)
-
-    return None
-
-
-# =============================================================
-#  UNIFIED TEMPLATE FOR ALL DECORATED TRACES
-# =============================================================
-def _unified_trace_wrapper(fn, tele, span_name, base_attrs):
-    """
-    This function produces the unified trace, metrics, logs template.
-    Called by all decorators.
-    """
-
+def _execute_with_telemetry(callable_fn, tele, span_name, base_attrs):
     tracer = tele.traces.tracer
     counter_name = f"{span_name}.calls"
     histogram_name = f"{span_name}.duration_ms"
@@ -55,16 +28,14 @@ def _unified_trace_wrapper(fn, tele, span_name, base_attrs):
         with tracer.start_as_current_span(span_name) as s:
             span = s
 
-            # Set unified attributes
             for k, v in base_attrs.items():
                 span.set_attribute(k, v)
 
-            result = fn()
+            result = callable_fn()
 
             duration = (time.time() - start) * 1000
             span.set_attribute("duration_ms", duration)
 
-            # Metrics
             tele.metrics.increment_counter(
                 counter_name, 1, {**base_attrs, "outcome": "success"}
             )
@@ -72,10 +43,9 @@ def _unified_trace_wrapper(fn, tele, span_name, base_attrs):
                 histogram_name, duration, {**base_attrs, "outcome": "success"}
             )
 
-            # Logs
             tele.logs.info(
                 f"{span_name} executed successfully",
-                {**base_attrs, "duration_ms": duration, "outcome": "success"}
+                {**base_attrs, "duration_ms": duration, "outcome": "success"},
             )
 
             return result
@@ -83,22 +53,19 @@ def _unified_trace_wrapper(fn, tele, span_name, base_attrs):
     except Exception as e:
         duration = (time.time() - start) * 1000
 
-        # Trace error
         if span:
             span.record_exception(e)
             span.set_status(StatusCode.ERROR)
 
-        # Metrics
         tele.metrics.increment_counter(
             counter_name, 1,
-            {**base_attrs, "outcome": "error", "exception.type": type(e).__name__}
+            {**base_attrs, "outcome": "error", "exception.type": type(e).__name__},
         )
         tele.metrics.record_histogram(
             histogram_name, duration,
-            {**base_attrs, "outcome": "error", "exception.type": type(e).__name__}
+            {**base_attrs, "outcome": "error", "exception.type": type(e).__name__},
         )
 
-        # Logs
         tele.logs.error(
             f"Error in {span_name}",
             {
@@ -107,25 +74,21 @@ def _unified_trace_wrapper(fn, tele, span_name, base_attrs):
                 "exception.type": type(e).__name__,
                 "exception.message": str(e),
                 "outcome": "error",
-            }
+            },
         )
 
         raise
 
 
 # ======================================================================
-#  UNIFIED TRACE DECORATOR
+#  DECORATOR FACTORIES (TELEMETRY BOUND HERE 🔥)
 # ======================================================================
-def trace(name: str = None):
-    def dec(fn):
+def create_decorators(telemetry):
 
-        @functools.wraps(fn)
-        def wrapper(*args, **kwargs):
-
-            tele = _resolve_telemetry(args[0] if args else None, fn)
+    # ---------------- TRACE ----------------
+    def trace(name: str = None):
+        def dec(fn):
             span_base = name or fn.__name__
-
-            # Unified span name
             span_name = f"telemetry.decorator.{span_base}"
 
             base_attrs = {
@@ -135,81 +98,50 @@ def trace(name: str = None):
                 "telemetry.sdk": "custom-python-sdk",
             }
 
-            if tele and hasattr(tele, "traces") and hasattr(tele.traces, "tracer"):
-                return _unified_trace_wrapper(lambda: fn(*args, **kwargs),
-                                              tele, span_name, base_attrs)
+            @functools.wraps(fn)
+            def wrapper(*args, **kwargs):
+                return _execute_with_telemetry(
+                    lambda: fn(*args, **kwargs),
+                    telemetry,
+                    span_name,
+                    base_attrs,
+                )
 
-            # No tracing available → fallback
-            return fn(*args, **kwargs)
+            return wrapper
+        return dec
 
-        wrapper._telemetry = getattr(fn, "_telemetry", None)
-        return wrapper
+    # ---------------- METRIC COUNTER ----------------
+    def metric_counter(name: str, attributes: Optional[Dict[str, Any]] = None):
+        attributes = attributes or {}
 
-    return dec
+        def dec(fn):
+            @functools.wraps(fn)
+            def wrapper(*args, **kwargs):
+                telemetry.metrics.increment_counter(name, 1, attributes)
+                return fn(*args, **kwargs)
 
+            return wrapper
+        return dec
 
-# ======================================================================
-#  METRIC COUNTER (unchanged)
-# ======================================================================
-def metric_counter(name: str, attributes: Optional[Dict[str, Any]] = None):
-    attributes = attributes or {}
+    # ---------------- LOG DECORATORS ----------------
+    def _log(level, message, attributes=None):
+        attributes = attributes or {}
 
-    def dec(fn):
-        @functools.wraps(fn)
-        def wrapper(*args, **kwargs):
-            tele = _resolve_telemetry(args[0] if args else None, fn)
+        def dec(fn):
+            @functools.wraps(fn)
+            def wrapper(*args, **kwargs):
+                getattr(telemetry.logs, level)(message, attributes)
+                return fn(*args, **kwargs)
 
-            if tele:
-                try:
-                    tele.metrics.increment_counter(name, 1, attributes)
-                except Exception:
-                    pass
+            return wrapper
+        return dec
 
-            return fn(*args, **kwargs)
+    def log_info(msg, attrs=None): return _log("info", msg, attrs)
+    def log_debug(msg, attrs=None): return _log("debug", msg, attrs)
+    def log_warning(msg, attrs=None): return _log("warning", msg, attrs)
+    def log_error(msg, attrs=None): return _log("error", msg, attrs)
 
-        wrapper._telemetry = getattr(fn, "_telemetry", None)
-        return wrapper
-
-    return dec
-
-
-# ======================================================================
-#  LOG DECORATORS (unchanged)
-# ======================================================================
-def _log(level, message, attributes=None):
-    attributes = attributes or {}
-
-    def dec(fn):
-        @functools.wraps(fn)
-        def wrapper(*args, **kwargs):
-            tele = _resolve_telemetry(args[0] if args else None, fn)
-
-            if tele:
-                try:
-                    getattr(tele.logs, level)(message, attributes)
-                except Exception:
-                    pass
-
-            return fn(*args, **kwargs)
-
-        wrapper._telemetry = getattr(fn, "_telemetry", None)
-        return wrapper
-
-    return dec
-
-
-# Public log decorators
-def log_info(msg, attrs=None): return _log("info", msg, attrs)
-def log_debug(msg, attrs=None): return _log("debug", msg, attrs)
-def log_warning(msg, attrs=None): return _log("warning", msg, attrs)
-def log_error(msg, attrs=None): return _log("error", msg, attrs)
-
-
-# ======================================================================
-#  DECORATOR REGISTRY
-# ======================================================================
-def create_decorators(telemetry):
-    d = {
+    return {
         "trace": trace,
         "metric_counter": metric_counter,
         "log_info": log_info,
@@ -217,15 +149,6 @@ def create_decorators(telemetry):
         "log_warning": log_warning,
         "log_error": log_error,
     }
-
-    # Bind telemetry to decorator factories
-    for name, dec in d.items():
-        dec._telemetry = telemetry
-
-    return d
-
-
-
 
 
 
