@@ -93,18 +93,17 @@ class TelemetryCollector:
         if self.config.enable_logs and self.config.auto_instrument:
             try:
                 from opentelemetry.instrumentation.logging import LoggingInstrumentor
-                LoggingInstrumentor().instrument(set_logging_format=True)
-                # ,excluded_loggers=[
-                #     "werkzeug",
-                #     "werkzeug._internal",
-                #     "werkzeug.serving",
-                #     "werkzeug.developmentserver",
-                #     "werkzeug.wsgi",
-                #     "gunicorn.access",
-                #     "uvicorn.access",
-                # ])
-                # self._enable_python_auto_log_capture()
-                # logger.debug("Python auto log capture enabled.")
+                LoggingInstrumentor().instrument(set_logging_format=True,excluded_loggers=[
+                    "werkzeug",
+                    "werkzeug._internal",
+                    "werkzeug.serving",
+                    "werkzeug.developmentserver",
+                    "werkzeug.wsgi",
+                    "gunicorn.access",
+                    "uvicorn.access",
+                ])
+                self._enable_python_auto_log_capture()
+                logger.debug("Python auto log capture enabled.")
             except Exception:
                 logger.debug("Python logging auto-instrumentation failed", exc_info=True)
 
@@ -116,9 +115,6 @@ class TelemetryCollector:
         from opentelemetry.trace import get_current_span
 
         provider = self._logs.otel_logger_provider
-
-        # DO NOT CALL set_logger_provider(provider) HERE ❌
-
         otel_logger = provider.get_logger(self.config.service_name)
 
         class OTelLoggingHandler(logging.Handler):
