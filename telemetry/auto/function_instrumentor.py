@@ -22,28 +22,19 @@ from telemetry.auto.decorators import _resolve_telemetry
 # ============================================================
 def instrument_function(fn, name: Optional[str] = None):
 
-    # Unified span name
     span_base = name or fn.__name__
     span_name = f"telemetry.function.{span_base}"
 
-    # Unified metric names
-    counter_name = f"telemetry.function.{span_base}.calls"
-    histogram_name = f"telemetry.function.{span_base}.duration_ms"
+    counter_name = f"{span_name}.calls"
+    histogram_name = f"{span_name}.duration_ms"
 
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
 
-        # Resolve telemetry (primary from wrapper, fallback from class/decorators)
         tele = getattr(wrapper, "_telemetry", None)
-        if tele is None:
-            tele = _resolve_telemetry(args[0] if args else None, fn)
-
-        print(f"\n🔥 [FUNCTION WRAPPER ENTER] {span_name}", flush=True)
-        print(f"    wrapper._telemetry={tele}", flush=True)
 
         start = time.time()
 
-        # unified base attributes
         base_attrs = {
             "code.function": fn.__name__,
             "code.module": fn.__module__,
@@ -51,19 +42,14 @@ def instrument_function(fn, name: Optional[str] = None):
             "telemetry.sdk": "custom-python-sdk",
         }
 
-        # ======================================================
-        #   CASE 1 — full telemetry (preferred)
-        # ======================================================
+        # ---------- FULL TELEMETRY ----------
         if tele and hasattr(tele, "traces") and hasattr(tele.traces, "tracer"):
-
             tracer = tele.traces.tracer
             span = None
 
             try:
                 with tracer.start_as_current_span(span_name) as s:
                     span = s
-
-                    # attach base attrs into span
                     for k, v in base_attrs.items():
                         span.set_attribute(k, v)
 
@@ -72,16 +58,16 @@ def instrument_function(fn, name: Optional[str] = None):
                     duration = (time.time() - start) * 1000
                     span.set_attribute("duration_ms", duration)
 
-                    # success metrics
-                    tele.metrics.increment_counter(counter_name, 1,
-                        {**base_attrs, "outcome": "success"})
-                    tele.metrics.record_histogram(histogram_name, duration,
-                        {**base_attrs, "outcome": "success"})
+                    tele.metrics.increment_counter(
+                        counter_name, 1, {**base_attrs, "outcome": "success"}
+                    )
+                    tele.metrics.record_histogram(
+                        histogram_name, duration, {**base_attrs, "outcome": "success"}
+                    )
 
-                    # logs
                     tele.logs.info(
                         f"{span_name} executed successfully",
-                        {**base_attrs, "duration_ms": duration, "outcome": "success"}
+                        {**base_attrs, "duration_ms": duration, "outcome": "success"},
                     )
 
                     return result
@@ -89,22 +75,19 @@ def instrument_function(fn, name: Optional[str] = None):
             except Exception as exc:
                 duration = (time.time() - start) * 1000
 
-                # trace error
                 if span:
                     span.record_exception(exc)
                     span.set_status(StatusCode.ERROR)
 
-                # metrics error
                 tele.metrics.increment_counter(
                     counter_name, 1,
-                    {**base_attrs, "outcome": "error", "exception.type": type(exc).__name__}
+                    {**base_attrs, "outcome": "error", "exception.type": type(exc).__name__},
                 )
                 tele.metrics.record_histogram(
                     histogram_name, duration,
-                    {**base_attrs, "outcome": "error", "exception.type": type(exc).__name__}
+                    {**base_attrs, "outcome": "error", "exception.type": type(exc).__name__},
                 )
 
-                # logs
                 tele.logs.error(
                     f"Error in {span_name}",
                     {
@@ -113,68 +96,22 @@ def instrument_function(fn, name: Optional[str] = None):
                         "exception.type": type(exc).__name__,
                         "exception.message": str(exc),
                         "outcome": "error",
-                    }
+                    },
                 )
                 raise
 
-        # ======================================================
-        #   CASE 2 — No tracer: only metrics/logs
-        # ======================================================
-        try:
-            result = fn(*args, **kwargs)
-            duration = (time.time() - start) * 1000
-
-            if tele:
-                tele.metrics.increment_counter(counter_name, 1,
-                    {**base_attrs, "outcome": "success"})
-                tele.metrics.record_histogram(histogram_name, duration,
-                    {**base_attrs, "outcome": "success"})
-                tele.logs.info(
-                    f"{span_name} executed successfully",
-                    {**base_attrs, "duration_ms": duration}
-                )
-
-            return result
-
-        except Exception as exc:
-            duration = (time.time() - start) * 1000
-
-            if tele:
-                tele.metrics.increment_counter(counter_name, 1,
-                    {**base_attrs, "outcome": "error",
-                     "exception.type": type(exc).__name__})
-                tele.metrics.record_histogram(histogram_name, duration,
-                    {**base_attrs, "outcome": "error",
-                     "exception.type": type(exc).__name__})
-                tele.logs.error(
-                    f"Error in {span_name}",
-                    {
-                        **base_attrs,
-                        "duration_ms": duration,
-                        "exception.type": type(exc).__name__,
-                        "exception.message": str(exc)
-                    }
-                )
-
-            raise
-
-    # Telemetry binding placeholder
-    wrapper._telemetry = getattr(fn, "_telemetry", None)
+        # ---------- NO TELEMETRY ----------
+        return fn(*args, **kwargs)
 
     return wrapper
-
 
 # ============================================================
 #   FUNCTION INSTRUMENTOR CLASS
 # ============================================================
 class FunctionInstrumentor:
-    def __init__(self):
-        self._wrapped = {}
-
     def instrument(self, func, name=None):
         wrapped = instrument_function(func, name)
-        wrapped._telemetry = getattr(func, "_telemetry", None)
-        self._wrapped[func] = wrapped
+        wrapped._telemetry = self.telemetry   # injected by collector
         return wrapped
 
 
