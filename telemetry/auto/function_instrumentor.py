@@ -106,10 +106,18 @@ def instrument_function(fn, name: Optional[str] = None):
 #   FUNCTION INSTRUMENTOR CLASS
 # ============================================================
 class FunctionInstrumentor:
-    def instrument(self, func, name=None):
+    def __init__(self):
+        self._wrapped = {}
+
+    def instrument(self, func, name=None, telemetry=None):
         wrapped = instrument_function(func, name)
-        wrapped._telemetry = self.telemetry   # injected by collector
+
+        if telemetry:
+            wrapped._telemetry = telemetry
+
+        self._wrapped[func] = wrapped
         return wrapped
+
 
 
 # ============================================================

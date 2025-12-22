@@ -210,12 +210,9 @@ class TelemetryCollector:
             return func
 
         # Ask FunctionInstrumentor to wrap the function
-        wrapped = self._func_instrumentor.instrument(func, name)
+        wrapped = self._func_instrumentor.instrument(func, name,  telemetry=self)
         print(f"    ✔ Wrapper created: {wrapped} (id={id(wrapped)})", flush=True)
         print(f"    ✔ Wrapper __name__ = {wrapped.__name__}", flush=True)
-
-        # Attach telemetry so wrapper can use it
-        wrapped._telemetry = self
         wrapped.__wrapped_by_sdk__ = True
 
         print(f"     Attached TelemetryCollector to wrapper _telemetry={wrapped._telemetry}", flush=True)
