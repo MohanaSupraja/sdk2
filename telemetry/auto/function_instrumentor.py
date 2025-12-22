@@ -13,9 +13,6 @@ except Exception:
         ERROR = "ERROR"
     StatusCode = _Dummy()
 
-# Telemetry resolver
-from telemetry.auto.decorators import _resolve_telemetry
-
 
 # ============================================================
 #   FUNCTION INSTRUMENTATION — UNIFIED TEMPLATE
