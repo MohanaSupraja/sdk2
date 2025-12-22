@@ -93,15 +93,16 @@ class TelemetryCollector:
         if self.config.enable_logs and self.config.auto_instrument:
             try:
                 from opentelemetry.instrumentation.logging import LoggingInstrumentor
-                LoggingInstrumentor().instrument(set_logging_format=True,excluded_loggers=[
-                    "werkzeug",
-                    "werkzeug._internal",
-                    "werkzeug.serving",
-                    "werkzeug.developmentserver",
-                    "werkzeug.wsgi",
-                    "gunicorn.access",
-                    "uvicorn.access",
-                ])
+                LoggingInstrumentor().instrument(set_logging_format=True)
+                # ,excluded_loggers=[
+                #     "werkzeug",
+                #     "werkzeug._internal",
+                #     "werkzeug.serving",
+                #     "werkzeug.developmentserver",
+                #     "werkzeug.wsgi",
+                #     "gunicorn.access",
+                #     "uvicorn.access",
+                # ])
                 # self._enable_python_auto_log_capture()
                 # logger.debug("Python auto log capture enabled.")
             except Exception:
