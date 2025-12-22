@@ -102,8 +102,8 @@ class TelemetryCollector:
                     "gunicorn.access",
                     "uvicorn.access",
                 ])
-                self._enable_python_auto_log_capture()
-                logger.debug("Python auto log capture enabled.")
+                # self._enable_python_auto_log_capture()
+                # logger.debug("Python auto log capture enabled.")
             except Exception:
                 logger.debug("Python logging auto-instrumentation failed", exc_info=True)
 
