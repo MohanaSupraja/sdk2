@@ -354,6 +354,7 @@ def setup_otel(config: TelemetryConfig) -> Dict[str, Any]:
     # Logs
     if config.enable_logs:
         logger_provider = LoggerProvider(resource=resource)
+
         logger_provider.add_log_record_processor(
             BatchLogRecordProcessor(
                 OTLPLogExporter(
@@ -362,7 +363,11 @@ def setup_otel(config: TelemetryConfig) -> Dict[str, Any]:
                 )
             )
         )
-    set_logger_provider(logger_provider)
+
+        # ✅ MUST be inside the block
+        set_logger_provider(logger_provider)
+
+        providers["logger_provider"] = logger_provider
 
     return providers
 
