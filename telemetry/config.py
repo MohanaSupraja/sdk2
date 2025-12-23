@@ -55,6 +55,11 @@ class TelemetryConfig:
 
     # Instrument this SDK itself
     instrument_sify_sdk: bool = False
+    disable_framework_logs: bool = False
+    framework_loggers_to_disable: List[str] = field(
+        default_factory=lambda: ["werkzeug"]
+    )
+
 
     
     # SAMPLING + BATCH EXPORT SETTINGS

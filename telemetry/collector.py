@@ -93,19 +93,25 @@ class TelemetryCollector:
         if self.config.enable_logs and self.config.auto_instrument:
             try:
                 from opentelemetry.instrumentation.logging import LoggingInstrumentor
-                LoggingInstrumentor().instrument(set_logging_format=True,excluded_loggers=[
-                    "werkzeug",
-                    "werkzeug._internal",
-                    "werkzeug.serving",
-                    "werkzeug.developmentserver",
-                    "werkzeug.wsgi",
-                    "gunicorn.access",
-                    "uvicorn.access",
-                ])
-                # self._enable_python_auto_log_capture()
-                logger.debug("Python auto log capture enabled.")
+                LoggingInstrumentor().instrument(
+                    set_logging_format=True,
+                    excluded_loggers=[
+                        "werkzeug",
+                        "werkzeug._internal",
+                        "werkzeug.serving",
+                        "werkzeug.developmentserver",
+                        "werkzeug.wsgi",
+                        "gunicorn.access",
+                        "uvicorn.access",
+                    ],
+                )
             except Exception:
                 logger.debug("Python logging auto-instrumentation failed", exc_info=True)
+
+        # THEN disable framework logs (user intent)
+        if self.config.disable_framework_logs:
+            for name in self.config.framework_loggers_to_disable:
+                logging.getLogger(name).disabled = True
 
     # --------------------------------------------------------
     #  NEW METHOD: EXPORT NORMAL PYTHON LOGS → OTEL → LOKI
