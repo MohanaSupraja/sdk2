@@ -10,15 +10,15 @@ class TelemetryConfig:
     Handles both manual + auto-instrumentation cleanly.
     """
 
-    # -------------------------------------------------------------
+    
     # SERVICE METADATA
-    # -------------------------------------------------------------
+    
     service_name: str = "sify-service"
     resource_attributes: Dict[str, str] = field(default_factory=dict)
 
-    # -------------------------------------------------------------
+    
     # OTLP EXPORTER SETTINGS
-    # -------------------------------------------------------------
+    
     collector_endpoint: Optional[str] = None
     protocol: str = "http/protobuf"         # {"http/protobuf", "grpc"}
     headers: Dict[str, str] = field(default_factory=dict)
@@ -35,7 +35,7 @@ class TelemetryConfig:
 
 
     # Framework (Flask, FastAPI, Django)
-    instrument_frameworks: bool = True
+    instrument_frameworks: bool = False
     framework_app: Any = None
 
     # Library instrumentation (requests, urllib3, httpx)
@@ -56,17 +56,17 @@ class TelemetryConfig:
     # Instrument this SDK itself
     instrument_sify_sdk: bool = False
 
-    # -------------------------------------------------------------
+    
     # SAMPLING + BATCH EXPORT SETTINGS
-    # -------------------------------------------------------------
+    
     sampling_rate: float = 1.0
     export_interval_ms: int = 5000
     max_queue_size: int = 2048
     max_export_batch_size: int = 512
 
-    # -------------------------------------------------------------
+    
     # HTTP CAPTURE SETTINGS
-    # -------------------------------------------------------------
+    
     capture_headers: bool = False
     capture_query_params: bool = True
     capture_request_body: bool = False
@@ -75,9 +75,9 @@ class TelemetryConfig:
 
     log_sample_rate: float = 1.0
 
-    # -------------------------------------------------------------
+    
     # DATA MASKING
-    # -------------------------------------------------------------
+    
     mask_sensitive_data: bool = True
     sensitive_fields: List[str] = field(
         default_factory=lambda: ["password", "api_key", "token", "secret"]
