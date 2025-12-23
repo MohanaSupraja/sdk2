@@ -90,23 +90,23 @@ class TelemetryCollector:
         #     ✔ Injects trace_id/span_id
         #     ✔ Sends to OTEL → Collector → Loki
         # --------------------------------------------------------
-        if self.config.enable_logs and self.config.auto_instrument:
-            try:
-                from opentelemetry.instrumentation.logging import LoggingInstrumentor
-                LoggingInstrumentor().instrument(
-                    set_logging_format=True,
-                    excluded_loggers=[
-                        "werkzeug",
-                        "werkzeug._internal",
-                        "werkzeug.serving",
-                        "werkzeug.developmentserver",
-                        "werkzeug.wsgi",
-                        "gunicorn.access",
-                        "uvicorn.access",
-                    ],
-                )
-            except Exception:
-                logger.debug("Python logging auto-instrumentation failed", exc_info=True)
+        # if self.config.enable_logs and self.config.auto_instrument:
+        #     try:
+        #         from opentelemetry.instrumentation.logging import LoggingInstrumentor
+        #         LoggingInstrumentor().instrument(
+        #             set_logging_format=True,
+        #             excluded_loggers=[
+        #                 "werkzeug",
+        #                 "werkzeug._internal",
+        #                 "werkzeug.serving",
+        #                 "werkzeug.developmentserver",
+        #                 "werkzeug.wsgi",
+        #                 "gunicorn.access",
+        #                 "uvicorn.access",
+        #             ],
+        #         )
+        #     except Exception:
+        #         logger.debug("Python logging auto-instrumentation failed", exc_info=True)
 
         # THEN disable framework logs (user intent)
         if self.config.disable_framework_logs:

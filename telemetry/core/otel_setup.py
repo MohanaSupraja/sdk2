@@ -364,8 +364,24 @@ def setup_otel(config: TelemetryConfig) -> Dict[str, Any]:
             )
         )
 
-        # ✅ MUST be inside the block
+        # 1️⃣ Register provider globally (MANDATORY)
         set_logger_provider(logger_provider)
+
+        # 2️⃣ Instrument Python logging EARLY (MANDATORY)
+        from opentelemetry.instrumentation.logging import LoggingInstrumentor
+
+        LoggingInstrumentor().instrument(
+            set_logging_format=True,
+            excluded_loggers=[
+                "werkzeug",
+                "werkzeug._internal",
+                "werkzeug.serving",
+                "werkzeug.developmentserver",
+                "werkzeug.wsgi",
+                "gunicorn.access",
+                "uvicorn.access",
+            ],
+        )
 
         providers["logger_provider"] = logger_provider
 
