@@ -39,16 +39,19 @@ class TelemetryConfig:
     framework_app: Any = None
 
     # Library instrumentation (requests, urllib3, httpx)
-    instrument_libraries_enabled: bool = True
-    instrument_libraries: List[str] = field(
-        default_factory=lambda: ["requests", "urllib3", "httpx"]
-    )
+    instrument_libraries_enabled: bool = False
+    # instrument_libraries: List[str] = field(
+    #     default_factory=lambda: ["requests", "urllib3", "httpx"]
+    # )
+    instrument_libraries: List[str] = field(default_factory=list)
 
     # Database instrumentation
     instrument_databases_enabled: bool = False
-    instrument_databases: List[str] = field(
-        default_factory=lambda: ["sqlalchemy"]
-    )
+    # instrument_databases: List[str] = field(
+    #     default_factory=lambda: ["sqlalchemy"]
+    # )
+    instrument_databases: List[str] = field(default_factory=list)
+
 
     # Instrument this SDK itself
     instrument_sify_sdk: bool = False
