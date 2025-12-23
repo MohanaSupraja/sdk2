@@ -321,25 +321,48 @@ def setup_otel(config: TelemetryConfig) -> Dict[str, Any]:
     # =========================================================
     # LOGS  🔥 THIS IS THE CRITICAL PART
     # =========================================================
+    # if config.enable_logs:
+    #     try:
+    #         logger_provider = LoggerProvider(resource=resource)
+
+    #         log_exporter = OTLPLogExporter(
+    #             endpoint=f"{config.collector_endpoint}/v1/logs",
+    #             headers=config.headers or {},
+    #         ) if config.collector_endpoint else ConsoleLogExporter()
+
+    #         logger_provider.add_log_record_processor(
+    #             BatchLogRecordProcessor(log_exporter)
+    #         )
+
+    #         # 🔥 REQUIRED: register provider globally
+    #         set_logger_provider(logger_provider)
+
+    #         # 🔥 REQUIRED: attach handler to Python logging
+    #         handler = LoggingHandler(
+    #             level=logging.NOTSET,
+    #             logger_provider=logger_provider,
+    #         )
+
+    #         root_logger = logging.getLogger()
+    #         root_logger.addHandler(handler)
+    #         root_logger.setLevel(logging.INFO)
+
+    #         providers["logger_provider"] = logger_provider
+
+    #     except Exception as e:
+    #         logger.exception("Log setup failed")
+    # Logs
     if config.enable_logs:
-        try:
-            logger_provider = LoggerProvider(resource=resource)
-
-            log_exporter = OTLPLogExporter(
-                endpoint=f"{config.collector_endpoint}/v1/logs",
-                headers=config.headers or {},
-            ) if config.collector_endpoint else ConsoleLogExporter()
-
-            logger_provider.add_log_record_processor(
-                BatchLogRecordProcessor(log_exporter)
+        logger_provider = LoggerProvider(resource=resource)
+        logger_provider.add_log_record_processor(
+            BatchLogRecordProcessor(
+                OTLPLogExporter(
+                    endpoint=f"{config.collector_endpoint}/v1/logs",
+                    headers=config.headers or {},
+                )
             )
-
-            # 🔥 REQUIRED: register provider globally
-            set_logger_provider(logger_provider)
-            providers["logger_provider"] = logger_provider
-
-        except Exception as e:
-            logger.exception("Log setup failed")
+        )
+    set_logger_provider(logger_provider)
 
     return providers
 
