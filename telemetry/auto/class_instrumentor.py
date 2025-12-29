@@ -19,24 +19,21 @@ def instrument_class(cls, telemetry, prefix=None):
         ✓ Same attributes
     """
 
+    # ---- Guard: avoid double instrumentation ----
+    if getattr(cls, "_telemetry_instrumented", False):
+        return cls
+    cls._telemetry_instrumented = True
+
     class_name = cls.__name__
 
-    for name, method in inspect.getmembers(cls, inspect.isfunction):
+    for _, method in inspect.getmembers(cls, inspect.isfunction):
 
-        if name.startswith("_"):
+        if method.__name__.startswith("_"):
             continue  # skip private / dunder
 
-        original = getattr(cls, name)
+        original = method
 
-        # Unified span name
-        qualified_name = f"{class_name}.{name}"
-        span_name = f"telemetry.class.{qualified_name}"
-
-        # Unified metrics
-        counter_name = f"telemetry.class.{qualified_name}.calls"
-        histogram_name = f"telemetry.class.{qualified_name}.duration_ms"
-
-        def make_wrapper(orig_fn, span_name, method_name=name):
+        def make_wrapper(orig_fn):
             @functools.wraps(orig_fn)
             def wrapper(*args, **kwargs):
 
@@ -50,22 +47,38 @@ def instrument_class(cls, telemetry, prefix=None):
                 span = None
                 start = time.time()
 
+                # ✅ ACTUAL invoked method name (source of truth)
+                method_name = orig_fn.__name__
+                qualified_name = f"{class_name}.{method_name}"
+                span_name = f"{qualified_name}.Span"
+                counter_name = f"{qualified_name}.calls"
+                histogram_name = f"{qualified_name}.duration_ms"
+
                 try:
                     with tracer.start_as_current_span(span_name) as span:
 
-                        # Unified attributes
+                        # ---- Unified span attributes ----
                         span.set_attribute("code.function", method_name)
                         span.set_attribute("code.class", class_name)
                         span.set_attribute("code.module", orig_fn.__module__)
                         span.set_attribute("telemetry.kind", "class")
-                        span.set_attribute("telemetry.sdk", "custom-python-sdk")
+                        span.set_attribute("telemetry.sdk", "class-instrumentation-sdk")
+
+                        # ---- HTTP context (if available) ----
+                        try:
+                            from flask import has_request_context, request
+                            if has_request_context():
+                                span.set_attribute("http.method", request.method)
+                                span.set_attribute("http.route", request.path)
+                        except Exception:
+                            pass
 
                         result = orig_fn(*args, **kwargs)
 
                         duration = (time.time() - start) * 1000
                         span.set_attribute("duration_ms", duration)
 
-                        # Metrics
+                        # ---- Metrics (success) ----
                         try:
                             tele.metrics.increment_counter(
                                 counter_name, 1,
@@ -75,7 +88,6 @@ def instrument_class(cls, telemetry, prefix=None):
                                     "outcome": "success",
                                 }
                             )
-
                             tele.metrics.record_histogram(
                                 histogram_name, duration,
                                 {
@@ -87,7 +99,7 @@ def instrument_class(cls, telemetry, prefix=None):
                         except Exception:
                             logger.debug("Metric success error", exc_info=True)
 
-                        # Logs
+                        # ---- Logs (success) ----
                         try:
                             tele.logs.info(
                                 f"{qualified_name} executed successfully",
@@ -96,7 +108,7 @@ def instrument_class(cls, telemetry, prefix=None):
                                     "function": method_name,
                                     "duration_ms": duration,
                                     "outcome": "success",
-                                    "telemetry.kind": "class"
+                                    "telemetry.kind": "class",
                                 }
                             )
                         except Exception:
@@ -105,10 +117,9 @@ def instrument_class(cls, telemetry, prefix=None):
                         return result
 
                 except Exception as e:
-
                     duration = (time.time() - start) * 1000
 
-                    # Trace error
+                    # ---- Trace error ----
                     try:
                         if span:
                             span.record_exception(e)
@@ -116,7 +127,7 @@ def instrument_class(cls, telemetry, prefix=None):
                     except Exception:
                         pass
 
-                    # Error metrics
+                    # ---- Metrics (error) ----
                     try:
                         tele.metrics.increment_counter(
                             counter_name, 1,
@@ -139,7 +150,7 @@ def instrument_class(cls, telemetry, prefix=None):
                     except Exception:
                         logger.debug("Metric error failed", exc_info=True)
 
-                    # Error logs
+                    # ---- Logs (error) ----
                     try:
                         tele.logs.error(
                             f"Error in {qualified_name}",
@@ -159,11 +170,10 @@ def instrument_class(cls, telemetry, prefix=None):
 
             # Allow TelemetryCollector to override later
             wrapper._telemetry = telemetry
-
             return wrapper
 
-        # Replace original method
-        setattr(cls, name, make_wrapper(original, span_name))
+        # Replace original method with wrapper
+        setattr(cls, original.__name__, make_wrapper(original))
 
     logger.info(f"Class '{cls.__name__}' instrumented successfully")
     return cls

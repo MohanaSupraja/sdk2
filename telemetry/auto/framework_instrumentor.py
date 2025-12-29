@@ -172,7 +172,6 @@ class FrameworkInstrumentor:
 
 # The user doesn’t need to configure anything manually 
 
-
 # If auto_instrumentation = False, then the behavior is:
 
 # The SDK will NOT auto-detect any framework (Flask/Django/FastAPI).

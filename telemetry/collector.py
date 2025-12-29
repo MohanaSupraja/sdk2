@@ -84,13 +84,7 @@ class TelemetryCollector:
                 self._db_instrumentor.instrument(self.config.instrument_databases)
             except Exception:
                 logger.debug("Database instrumentation failed", exc_info=True)
-        # --------------------------------------------------------
-        # 4️⃣ Auto-instrument Python logging → Loki
-        #     ✔ Captures ALL Python logs
-        #     ✔ Injects trace_id/span_id
-        #     ✔ Sends to OTEL → Collector → Loki
-        # --------------------------------------------------------
-        # 1️⃣ Instrument logging first
+
         if self.config.enable_logs and self.config.auto_instrument:
             try:
                 from opentelemetry.instrumentation.logging import LoggingInstrumentor
@@ -109,7 +103,7 @@ class TelemetryCollector:
             except Exception:
                 logger.debug("Python logging auto-instrumentation failed", exc_info=True)
 
-        # 2️⃣ THEN disable framework logs (user intent)
+        #  THEN disable framework logs (user intent)
         if self.config.disable_framework_logs:
             for name in self.config.framework_loggers_to_disable:
                 logging.getLogger(name).disabled = True

@@ -108,7 +108,7 @@ class DatabaseInstrumentor:
 
                 self._status[lib] = "instrumented"
 
-                logger.info(f"[DB-INSTRUMENTOR] Instrumented database library: {lib}")
+                logger.info(f"Instrumented database: {lib}")
                 results[lib] = True
 
             except Exception as e:
