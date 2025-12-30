@@ -17,8 +17,8 @@ class FrameworkInstrumentor:
     route tracing.
     """
 
-    def __init__(self, telemetry):
-        self.telemetry = telemetry
+    def __init__(self):
+       
         self._instrumented_apps = {}
 
     # ------------------------------------------------------------------
