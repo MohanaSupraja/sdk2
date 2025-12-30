@@ -60,6 +60,10 @@ class TelemetryConfig:
         default_factory=lambda: ["werkzeug"]
     )
 
+    # TRACE CONTROL (NEW)
+    trace_rules: Dict[str, Any] = field(default_factory=dict)
+
+
 
     
     # SAMPLING + BATCH EXPORT SETTINGS

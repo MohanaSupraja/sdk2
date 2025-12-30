@@ -22,6 +22,8 @@ class TelemetryCollector:
 
         # Setup OTel providers
         providers = setup_otel(self.config)
+        self.trace_rules = self.config.trace_rules
+        self.enable_traces = self.config.enable_traces
 
         self.tracer_provider = providers.get("tracer_provider")
         self.meter_provider = providers.get("meter_provider")

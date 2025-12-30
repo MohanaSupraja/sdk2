@@ -6,7 +6,7 @@ import functools
 import logging
 import time
 from opentelemetry.trace import StatusCode
-
+from utils.trace_decision import should_trace
 logger = logging.getLogger(__name__)
 
 
@@ -47,12 +47,24 @@ def instrument_class(cls, telemetry, prefix=None):
                 span = None
                 start = time.time()
 
-                # ✅ ACTUAL invoked method name (source of truth)
+                #  ACTUAL invoked method name (source of truth)
                 method_name = orig_fn.__name__
                 qualified_name = f"{class_name}.{method_name}"
                 span_name = f"{qualified_name}.Span"
                 counter_name = f"{qualified_name}.calls"
                 histogram_name = f"{qualified_name}.duration_ms"
+
+                ctx = {
+                    "layer": "business",
+                    "class": class_name,
+                    "method": method_name,
+                    "qualified_name": qualified_name,
+                    "module": orig_fn.__module__,
+                }
+
+                if not should_trace(tele, ctx):
+                    # Tracing (spans, metrics, logs) intentionally skipped by config
+                    return orig_fn(*args, **kwargs)
 
                 try:
                     with tracer.start_as_current_span(span_name) as span:
