@@ -6,7 +6,7 @@ import functools
 import logging
 import time
 from opentelemetry.trace import StatusCode
-from utils.trace_decision import should_trace
+from telemetry.utils.trace_decision import should_trace
 logger = logging.getLogger(__name__)
 
 
