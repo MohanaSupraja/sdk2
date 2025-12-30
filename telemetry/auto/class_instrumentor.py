@@ -39,7 +39,6 @@ def instrument_class(cls, telemetry, prefix=None):
 
                 tele = getattr(orig_fn, "_telemetry", telemetry)
 
-                # No telemetry → run normally
                 if tele is None or not getattr(tele, "traces", None):
                     return orig_fn(*args, **kwargs)
 
