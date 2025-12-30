@@ -192,7 +192,7 @@ class TelemetryCollector:
         return True
 
     def instrument_app(self, app: Any, framework: str = None):
-        return self._fw_instrumentor.instrument_app(app, framework)
+        return self._fw_instrumentor.instrument_app(self, app, framework)
 
     def instrument_class(self, cls, prefix=None):
         return self._class_instrumentor.instrument(cls, self, prefix)
