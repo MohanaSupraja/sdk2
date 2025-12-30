@@ -36,7 +36,7 @@ class TelemetryCollector:
 
         # Instrumentors
         self._lib_instrumentor = LibraryInstrumentor()
-        self._fw_instrumentor = FrameworkInstrumentor()
+        self._fw_instrumentor = FrameworkInstrumentor(self)
         self._db_instrumentor = DatabaseInstrumentor()
         self._sify_instrumentor = SifySDKInstrumentor()
         self._func_instrumentor = FunctionInstrumentor()
@@ -192,7 +192,8 @@ class TelemetryCollector:
         return True
 
     def instrument_app(self, app: Any, framework: str = None):
-        return self._fw_instrumentor.instrument_app(self, app, framework)
+        return self._fw_instrumentor.instrument_app(app, framework)
+
 
     def instrument_class(self, cls, prefix=None):
         return self._class_instrumentor.instrument(cls, self, prefix)

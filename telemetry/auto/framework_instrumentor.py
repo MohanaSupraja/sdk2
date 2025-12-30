@@ -13,42 +13,37 @@ logger = logging.getLogger(__name__)
 
 class FrameworkInstrumentor:
     """
-    Framework-specific instrumentation with configuration-based
-    route tracing.
+    Framework-specific instrumentation with configuration-driven
+    route-based tracing.
     """
 
-    def __init__(self):
-       
+    def __init__(self, telemetry):
+        self.telemetry = telemetry
         self._instrumented_apps = {}
 
     # ------------------------------------------------------------------
     def instrument_app(self, app: Any, framework: str = None) -> bool:
         try:
-            # ---------------- AUTO-DETECT ----------------
+            # -------- AUTO-DETECT FRAMEWORK --------
             if framework is None:
                 if hasattr(app, "wsgi_app") and hasattr(app, "route"):
                     framework = "flask"
                 elif hasattr(app, "router") and hasattr(app, "add_event_handler"):
                     framework = "fastapi" if "fastapi" in sys.modules else "starlette"
                 else:
-                    try:
-                        import django  # noqa
-                        framework = "django"
-                    except ImportError:
-                        return False
+                    return False
 
             framework = framework.lower()
 
-            # ---------------- FLASK ----------------
+            # -------- FLASK --------
             if framework == "flask":
                 from opentelemetry.instrumentation.flask import FlaskInstrumentor
+                from flask import request
 
                 FlaskInstrumentor().instrument_app(app)
 
                 @app.before_request
                 def _otel_route_trace_guard():
-                    from flask import request
-
                     ctx = {
                         "layer": "http",
                         "route": request.path,
@@ -56,20 +51,19 @@ class FrameworkInstrumentor:
                     }
 
                     if not should_trace(self.telemetry, ctx):
-                        # Disable tracing for this request
                         attach(trace.set_span_in_context(INVALID_SPAN))
 
                 self._instrumented_apps[id(app)] = "flask"
                 logger.info("Instrumented Flask app with route-based tracing.")
                 return True
 
-            # ---------------- FASTAPI / STARLETTE ----------------
+            # -------- FASTAPI / STARLETTE --------
             if framework in ("fastapi", "starlette"):
                 from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
                 from starlette.middleware.base import BaseHTTPMiddleware
 
                 class RouteTraceMiddleware(BaseHTTPMiddleware):
-                    async def dispatch(self, request, call_next):
+                    async def dispatch(inner_self, request, call_next):
                         ctx = {
                             "layer": "http",
                             "route": request.url.path,
@@ -87,7 +81,6 @@ class FrameworkInstrumentor:
                 self._instrumented_apps[id(app)] = framework
                 logger.info(f"Instrumented {framework} app with route-based tracing.")
                 return True
-
             # ---------------- DJANGO ----------------
             if framework == "django":
                 from opentelemetry.instrumentation.django import DjangoInstrumentor
