@@ -48,57 +48,16 @@ class FrameworkInstrumentor:
 
             framework = framework.lower()
 
-            # ============================================================
-            # 2) FLASK
-            # ============================================================
-            # if framework == "flask":
-            #     try:
-            #         from opentelemetry.instrumentation.flask import FlaskInstrumentor
 
-            #         FlaskInstrumentor().instrument_app(app)
-            #         self._instrumented_apps[id(app)] = "flask"
-            #         logger.info("Instrumented Flask application.")
-            #         return True
-
-            #     except Exception as e:
-            #         logger.debug("Flask instrumentation failed: %s", e, exc_info=True)
-            #         return False
-
-            # # ============================================================
-            # # 3) FASTAPI / STARLETTE
-            # # ============================================================
-            # if framework in ("fastapi", "starlette"):
-            #     try:
-            #         from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
-
-            #         # Safe middleware detection across multiple FastAPI versions
-            #         existing_middlewares = []
-
-            #         try:
-            #             existing_middlewares = [
-            #                 (m.cls.__name__ if hasattr(m, "cls") else m.__class__.__name__)
-            #                 for m in getattr(app, "user_middleware", [])
-            #             ]
-            #         except Exception:
-            #             pass
-
-            #         if "OpenTelemetryMiddleware" not in existing_middlewares:
-            #             try:
-            #                 app.add_middleware(OpenTelemetryMiddleware)
-            #             except Exception:
-            #                 logger.debug("Could not add ASGI middleware.", exc_info=True)
-
-            #         self._instrumented_apps[id(app)] = framework
-            #         logger.info(f"Instrumented {framework} app (ASGI middleware).")
-            #         return True
-
-            #     except Exception as e:
-            #         logger.debug(f"{framework} instrumentation failed: {e}", exc_info=True)
-            #         return False
             if framework == "flask":
                 from opentelemetry.instrumentation.flask import FlaskInstrumentor
 
-                FlaskInstrumentor().instrument_app(app)
+                # FlaskInstrumentor().instrument_app(app)
+                FlaskInstrumentor().instrument_app(
+                    app,
+                    excluded_urls="/api/deployments"
+                )
+
 
                 # ---- Route-based tracing hook ----
                 @app.before_request
@@ -245,3 +204,53 @@ class FrameworkInstrumentor:
 # The user must explicitly call: tele.instrument_app(app, framework="flask")
 
 # Only then does the SDK apply the correct instrumentor—otherwise, the framework is completely untouched."""
+
+
+
+            # ============================================================
+            # 2) FLASK
+            # ============================================================
+            # if framework == "flask":
+            #     try:
+            #         from opentelemetry.instrumentation.flask import FlaskInstrumentor
+
+            #         FlaskInstrumentor().instrument_app(app)
+            #         self._instrumented_apps[id(app)] = "flask"
+            #         logger.info("Instrumented Flask application.")
+            #         return True
+
+            #     except Exception as e:
+            #         logger.debug("Flask instrumentation failed: %s", e, exc_info=True)
+            #         return False
+
+            # # ============================================================
+            # # 3) FASTAPI / STARLETTE
+            # # ============================================================
+            # if framework in ("fastapi", "starlette"):
+            #     try:
+            #         from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
+
+            #         # Safe middleware detection across multiple FastAPI versions
+            #         existing_middlewares = []
+
+            #         try:
+            #             existing_middlewares = [
+            #                 (m.cls.__name__ if hasattr(m, "cls") else m.__class__.__name__)
+            #                 for m in getattr(app, "user_middleware", [])
+            #             ]
+            #         except Exception:
+            #             pass
+
+            #         if "OpenTelemetryMiddleware" not in existing_middlewares:
+            #             try:
+            #                 app.add_middleware(OpenTelemetryMiddleware)
+            #             except Exception:
+            #                 logger.debug("Could not add ASGI middleware.", exc_info=True)
+
+            #         self._instrumented_apps[id(app)] = framework
+            #         logger.info(f"Instrumented {framework} app (ASGI middleware).")
+            #         return True
+
+            #     except Exception as e:
+            #         logger.debug(f"{framework} instrumentation failed: {e}", exc_info=True)
+            #         return False
