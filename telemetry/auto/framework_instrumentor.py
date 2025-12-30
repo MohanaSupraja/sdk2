@@ -2,85 +2,59 @@ import logging
 import sys
 from typing import Any
 
-from opentelemetry import trace
-from opentelemetry.context import attach
-from opentelemetry.trace import INVALID_SPAN
-
-from telemetry.utils.trace_decision import should_trace
-
 logger = logging.getLogger(__name__)
 
 
 class FrameworkInstrumentor:
-    """
-    Framework-specific instrumentation with configuration-driven
-    route-based tracing.
-    """
-
     def __init__(self, telemetry):
         self.telemetry = telemetry
-        self._instrumented_apps = {}
+        self._instrumented_apps = {}  # app id -> framework name
 
-    # ------------------------------------------------------------------
     def instrument_app(self, app: Any, framework: str = None) -> bool:
         try:
-            # -------- AUTO-DETECT FRAMEWORK --------
+            # ---------------- AUTO DETECTION ----------------
             if framework is None:
                 if hasattr(app, "wsgi_app") and hasattr(app, "route"):
                     framework = "flask"
                 elif hasattr(app, "router") and hasattr(app, "add_event_handler"):
                     framework = "fastapi" if "fastapi" in sys.modules else "starlette"
                 else:
-                    return False
+                    try:
+                        import django  # noqa
+                        framework = "django"
+                    except ImportError:
+                        return False
 
             framework = framework.lower()
 
-            # -------- FLASK --------
+            # ---------------- FLASK ----------------
             if framework == "flask":
                 from opentelemetry.instrumentation.flask import FlaskInstrumentor
-                from flask import request
 
-                FlaskInstrumentor().instrument_app(app)
+                excluded = ""
+                try:
+                    http_rules = self.telemetry.trace_rules.get("http", {})
+                    excluded_routes = http_rules.get("exclude_routes", [])
+                    excluded = "|".join(excluded_routes)
+                except Exception:
+                    pass
 
-                @app.before_request
-                def _otel_route_trace_guard():
-                    ctx = {
-                        "layer": "http",
-                        "route": request.path,
-                        "method": request.method,
-                    }
-
-                    if not should_trace(self.telemetry, ctx):
-                        attach(trace.set_span_in_context(INVALID_SPAN))
+                FlaskInstrumentor().instrument_app(
+                    app,
+                    excluded_urls=excluded or None
+                )
 
                 self._instrumented_apps[id(app)] = "flask"
-                logger.info("Instrumented Flask app with route-based tracing.")
+                logger.info("Instrumented Flask application (route-aware).")
                 return True
 
-            # -------- FASTAPI / STARLETTE --------
+            # ---------------- FASTAPI / STARLETTE ----------------
             if framework in ("fastapi", "starlette"):
                 from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
-                from starlette.middleware.base import BaseHTTPMiddleware
-
-                class RouteTraceMiddleware(BaseHTTPMiddleware):
-                    async def dispatch(inner_self, request, call_next):
-                        ctx = {
-                            "layer": "http",
-                            "route": request.url.path,
-                            "method": request.method,
-                        }
-
-                        if not should_trace(self.telemetry, ctx):
-                            attach(trace.set_span_in_context(INVALID_SPAN))
-
-                        return await call_next(request)
-
-                app.add_middleware(RouteTraceMiddleware)
                 app.add_middleware(OpenTelemetryMiddleware)
-
                 self._instrumented_apps[id(app)] = framework
-                logger.info(f"Instrumented {framework} app with route-based tracing.")
                 return True
+
             # ---------------- DJANGO ----------------
             if framework == "django":
                 from opentelemetry.instrumentation.django import DjangoInstrumentor
@@ -90,8 +64,48 @@ class FrameworkInstrumentor:
 
             return False
 
-        except Exception:
+        except Exception as e:
             logger.exception("Framework instrumentation failed")
+            return False
+
+
+    # ---------------------------------------------------------------------
+    # 5) UN-INSTRUMENTATION (best-effort)
+    # ---------------------------------------------------------------------
+    def uninstrument_app(self, app: Any) -> bool:
+        try:
+            fid = id(app)
+            framework = self._instrumented_apps.get(fid)
+
+            if not framework:
+                return False
+
+            # Flask
+            if framework == "flask":
+                try:
+                    from opentelemetry.instrumentation.flask import FlaskInstrumentor
+                    FlaskInstrumentor().uninstrument_app(app)
+                    self._instrumented_apps.pop(fid, None)
+                    logger.info("Uninstrumented Flask app.")
+                    return True
+                except Exception:
+                    logger.debug("Flask uninstrumentation failed.", exc_info=True)
+                    return False
+
+            # FastAPI / Starlette
+            if framework in ("fastapi", "starlette"):
+                logger.debug("FastAPI/Starlette runtime uninstrumentation not supported.")
+                return False
+
+            # Django
+            if framework == "django":
+                logger.debug("Django cannot be uninstrumented at runtime.")
+                return False
+
+            return False
+
+        except Exception as e:
+            logger.debug("uninstrument_app error: %s", e, exc_info=True)
             return False
 
 
@@ -108,7 +122,6 @@ class FrameworkInstrumentor:
 
 # The user doesn’t need to configure anything manually 
 
-
 # If auto_instrumentation = False, then the behavior is:
 
 # The SDK will NOT auto-detect any framework (Flask/Django/FastAPI).
@@ -118,59 +131,3 @@ class FrameworkInstrumentor:
 # The user must explicitly call: tele.instrument_app(app, framework="flask")
 
 # Only then does the SDK apply the correct instrumentor—otherwise, the framework is completely untouched."""
-
-
-
-            # ============================================================
-            # 2) FLASK
-            # ============================================================
-            # if framework == "flask":
-            #     try:
-            #         from opentelemetry.instrumentation.flask import FlaskInstrumentor
-
-            #         FlaskInstrumentor().instrument_app(app)
-            #         self._instrumented_apps[id(app)] = "flask"
-            #         logger.info("Instrumented Flask application.")
-            #         return True
-
-            #     except Exception as e:
-            #         logger.debug("Flask instrumentation failed: %s", e, exc_info=True)
-            #         return False
-
-            # # ============================================================
-            # # 3) FASTAPI / STARLETTE
-            # # ============================================================
-            # if framework in ("fastapi", "starlette"):
-            #     try:
-            #         from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
-
-            #         # Safe middleware detection across multiple FastAPI versions
-            #         existing_middlewares = []
-
-            #         try:
-            #             existing_middlewares = [
-            #                 (m.cls.__name__ if hasattr(m, "cls") else m.__class__.__name__)
-            #                 for m in getattr(app, "user_middleware", [])
-            #             ]
-            #         except Exception:
-            #             pass
-
-            #         if "OpenTelemetryMiddleware" not in existing_middlewares:
-            #             try:
-            #                 app.add_middleware(OpenTelemetryMiddleware)
-            #             except Exception:
-            #                 logger.debug("Could not add ASGI middleware.", exc_info=True)
-
-            #         self._instrumented_apps[id(app)] = framework
-            #         logger.info(f"Instrumented {framework} app (ASGI middleware).")
-            #         return True
-
-            #     except Exception as e:
-            #         logger.debug(f"{framework} instrumentation failed: {e}", exc_info=True)
-            #         return False
-
-
-#  FlaskInstrumentor().instrument_app(
-#                     app,
-#                     excluded_urls="/api/deployments"
-#                 )
