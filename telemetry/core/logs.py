@@ -153,12 +153,12 @@ class LogsManager:
         attributes = self._mask(attributes)
         attributes.update(self._get_trace_context())
         attributes.update(self._extra_context())
-        # try:
-        #     user_id = get_user_context()
-        #     if user_id:
-        #         attributes["user.id"] = user_id
-        # except Exception:
-        #     pass
+        try:
+            user_id = get_user_context()
+            if user_id:
+                attributes["user.id"] = user_id
+        except Exception:
+            pass
         severity = {
             LogLevel.DEBUG: SeverityNumber.DEBUG,
             LogLevel.INFO: SeverityNumber.INFO,

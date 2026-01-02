@@ -1,5 +1,6 @@
 from typing import Dict, Any, Optional
 from contextlib import contextmanager
+from telemetry.utils.user_context import get_user_context   # ✅ already present
 
 try:
     from opentelemetry import trace
@@ -23,13 +24,6 @@ class DummySpan:
 class TracesManager:
     """
     Production-ready wrapper around OpenTelemetry tracing.
-
-    Features:
-    - start_span() context manager
-    - manual span creation
-    - safe DummySpan fallback
-    - events, errors, attributes helper methods
-    - trace_id/span_id fetcher
     """
 
     def __init__(self, tracer_provider=None):
@@ -37,20 +31,15 @@ class TracesManager:
 
         try:
             if trace:
-                # If a provider is given, set it **only if** no global provider exists yet.
                 if tracer_provider is not None:
                     try:
                         current = trace.get_tracer_provider()
-                        # Some SDKs expose a "ProxyTracerProvider" before real init;
-                        # we only override if they look like the default no-op.
                         if type(current).__name__.lower().startswith("default") or \
                            type(current).__name__.lower().startswith("proxy"):
                             trace.set_tracer_provider(tracer_provider)
                     except Exception:
-                        # Best effort; if this fails we just continue.
                         trace.set_tracer_provider(tracer_provider)
 
-                # ALWAYS create tracer via global provider
                 self.tracer = trace.get_tracer(__name__)
         except Exception:
             self.tracer = None
@@ -59,10 +48,6 @@ class TracesManager:
     # Internal helper: pick a safe SpanKind
     # ------------------------------------------------------------------
     def _normalize_kind(self, kind):
-        """
-        Ensure we never pass `kind=None` to OTel (that caused KeyError: None).
-        Defaults to INTERNAL when SpanKind is available.
-        """
         if kind is not None:
             return kind
         if SpanKind is not None:
@@ -70,11 +55,24 @@ class TracesManager:
         return None
 
     # ------------------------------------------------------------------
+    # 🔥 Internal helper: inject user.id into attributes
+    # ------------------------------------------------------------------
+    def _inject_user(self, attributes: Dict[str, Any] | None) -> Dict[str, Any] | None:
+        user_id = get_user_context()
+        if not user_id:
+            return attributes
+
+        attrs = dict(attributes or {})
+        attrs.setdefault("user.id", user_id)
+        return attrs
+
+    # ------------------------------------------------------------------
     # Start span (context manager)
     # ------------------------------------------------------------------
     @contextmanager
     def start_span(self, name: str, attributes: Dict[str, Any] = None, kind=None):
         kind = self._normalize_kind(kind)
+        attributes = self._inject_user(attributes)   # ✅ ADD
 
         if self.tracer:
             try:
@@ -86,10 +84,8 @@ class TracesManager:
                     yield span
                 return
             except Exception:
-                # fall through to DummySpan
                 pass
 
-        # Fallback path
         yield DummySpan()
 
     # ------------------------------------------------------------------
@@ -97,6 +93,7 @@ class TracesManager:
     # ------------------------------------------------------------------
     def start_span_as_current(self, name: str, attributes: Dict[str, Any] = None, kind=None):
         kind = self._normalize_kind(kind)
+        attributes = self._inject_user(attributes)   # ✅ ADD
 
         if self.tracer:
             try:
@@ -118,6 +115,7 @@ class TracesManager:
     # ------------------------------------------------------------------
     def create_span(self, name: str, attributes: Dict[str, Any] = None, kind=None):
         kind = self._normalize_kind(kind)
+        attributes = self._inject_user(attributes)   # ✅ ADD
 
         if self.tracer:
             try:
@@ -172,11 +170,9 @@ class TracesManager:
         try:
             span.record_exception(exception)
 
-            # If Status class exists (older OTel)
             if Status is not None:
                 span.set_status(Status(StatusCode.ERROR, str(exception)))
             else:
-                # New OTel versions accept StatusCode directly
                 span.set_status(StatusCode.ERROR)
 
         except Exception:
@@ -232,6 +228,7 @@ class TracesManager:
             }
         except Exception:
             return {}
+
 
 
 

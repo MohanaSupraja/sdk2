@@ -127,12 +127,12 @@ class MetricsManager:
         inst = self._get_or_create(name, "counter", description="", unit="")
         
         try:
-            # attrs = attributes or {}
-            # user_id = get_user_context()
-            # if user_id:
-            #     attrs = dict(attrs)
-            #     attrs["user.id"] = user_id
-            inst.add(value)
+            attrs = attributes or {}
+            user_id = get_user_context()
+            if user_id:
+                attrs = dict(attrs)
+                attrs["user.id"] = user_id
+            inst.add(value, attrs)
         except Exception:
             logger.debug("Error incrementing counter '%s'", name, exc_info=True)
 
@@ -144,13 +144,12 @@ class MetricsManager:
     def add_updown(self, name: str, value: float = 1.0, attributes: Dict[str, Any] = None):
         inst = self._get_or_create(name, "updown", description="", unit="")
         try:
-        #     attrs = attributes or {}
-        #     user_id = get_user_context()
-        #     if user_id:
-        #         attrs = dict(attrs)
-        #         attrs["user.id"] = user_id
-            # inst.add(value, attrs)
-            inst.add(value)
+            attrs = attributes or {}
+            user_id = get_user_context()
+            if user_id:
+                attrs = dict(attrs)
+                attrs["user.id"] = user_id
+            inst.add(value, attrs)
         except Exception:
             logger.debug("Error updating updown counter '%s'", name, exc_info=True)
 
@@ -162,13 +161,13 @@ class MetricsManager:
     def record_histogram(self, name: str, value: float, attributes: Dict[str, Any] = None, unit=None):
         inst = self._get_or_create(name, "histogram", description="", unit=unit)
         try:
-            # attrs = attributes or {}
-            # user_id = get_user_context()
-            # if user_id:
-            #     attrs = dict(attrs)
-            #     attrs["user.id"] = user_id
+            attrs = attributes or {}
+            user_id = get_user_context()
+            if user_id:
+                attrs = dict(attrs)
+                attrs["user.id"] = user_id
 
-            inst.record(value)
+            inst.record(value, attrs)
         except Exception:
             logger.debug("Error recording histogram '%s'", name, exc_info=True)
 
