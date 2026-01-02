@@ -1,25 +1,30 @@
 import logging
 from typing import Dict, List, Any, Optional
 
+from telemetry.utils.user_context import get_user_context
+
 logger = logging.getLogger(__name__)
+
+
+# ------------------------------------------------------------
+# 🔥 SpanProcessor to inject user.id into DB spans
+# ------------------------------------------------------------
+class UserContextDBSpanProcessor:
+    def on_start(self, span, parent_context=None):
+        try:
+            user_id = get_user_context()
+            if user_id and span is not None:
+                span.set_attribute("user.id", user_id)
+        except Exception:
+            pass
+
+    def on_end(self, span):
+        pass
 
 
 class DatabaseInstrumentor:
     """
     Production-grade instrumentor for database libraries.
-
-    Supports:
-        - SQLAlchemy
-        - Psycopg2
-        - PyMySQL
-        - Redis
-        - PyMongo
-
-    Features:
-        - Safe fallback
-        - Idempotent instrumentation
-        - Clear tracing/logging template
-        - Optional SQLAlchemy engine instrumentation
     """
 
     _INSTRUMENTOR_MAP: Dict[str, tuple] = {
@@ -42,7 +47,18 @@ class DatabaseInstrumentor:
     }
 
     def __init__(self):
-        self._status: Dict[str, str] = {}  # lib -> "instrumented" / "uninstrumented"
+        self._status: Dict[str, str] = {}
+
+        # ----------------------------------------------------
+        # 🔥 Register span processor ONCE (global)
+        # ----------------------------------------------------
+        try:
+            from opentelemetry import trace
+            provider = trace.get_tracer_provider()
+            if provider:
+                provider.add_span_processor(UserContextDBSpanProcessor())
+        except Exception:
+            logger.debug("Failed to register DB user context span processor", exc_info=True)
 
     # ----------------------------------------------------------------------
     def instrument(
@@ -50,40 +66,25 @@ class DatabaseInstrumentor:
         libraries: List[str],
         sqlalchemy_engine: Optional[Any] = None
     ) -> Dict[str, bool]:
-        """
-        Auto-instrument configured database libraries.
-        """
 
         results = {}
 
         for lib in libraries:
             lib = lib.lower()
 
-            # -------------------------------------------------------------
-            # Already instrumented
-            # -------------------------------------------------------------
             if self._status.get(lib) == "instrumented":
-                logger.debug(f"[DB-INSTRUMENTOR] {lib} already instrumented")
                 results[lib] = True
                 continue
 
-            # -------------------------------------------------------------
-            # Unknown library
-            # -------------------------------------------------------------
             if lib not in self._INSTRUMENTOR_MAP:
-                logger.debug(f"[DB-INSTRUMENTOR] No instrumentor registered for {lib}")
                 results[lib] = False
                 continue
 
             module_path, class_name = self._INSTRUMENTOR_MAP[lib]
 
-            # -------------------------------------------------------------
-            # Import instrumentor class
-            # -------------------------------------------------------------
             try:
                 mod = __import__(module_path, fromlist=[class_name])
                 InstrumentorClass = getattr(mod, class_name)
-
             except Exception as e:
                 logger.warning(
                     f"[DB-INSTRUMENTOR] Failed to import {class_name} for {lib}: {e}",
@@ -94,20 +95,13 @@ class DatabaseInstrumentor:
 
             inst = InstrumentorClass()
 
-            # -------------------------------------------------------------
-            # Perform instrumentation
-            # -------------------------------------------------------------
             try:
-
-                # SQLAlchemy: engine provided → instrument engine
                 if lib == "sqlalchemy" and sqlalchemy_engine is not None:
                     inst.instrument(engine=sqlalchemy_engine)
-
                 else:
                     inst.instrument()
 
                 self._status[lib] = "instrumented"
-
                 logger.info(f"Instrumented database: {lib}")
                 results[lib] = True
 
@@ -122,7 +116,6 @@ class DatabaseInstrumentor:
 
     # ----------------------------------------------------------------------
     def uninstrument(self, lib: str) -> bool:
-        """Undo instrumentation for a given database library."""
         lib = lib.lower()
 
         if lib not in self._INSTRUMENTOR_MAP:
@@ -154,6 +147,4 @@ class DatabaseInstrumentor:
 
     # ----------------------------------------------------------------------
     def status(self) -> Dict[str, str]:
-        """Return instrumentation status of all DB libs."""
         return dict(self._status)
-
