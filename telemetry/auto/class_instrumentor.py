@@ -4,6 +4,7 @@ import logging
 import time
 from opentelemetry.trace import StatusCode
 from telemetry.utils.trace_decision import should_trace
+from telemetry.utils.user_context import get_user_context
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,9 @@ def instrument_class(cls, telemetry, prefix=None):
                         span.set_attribute("code.class", class_name)
                         span.set_attribute("code.module", orig_fn.__module__)
                         span.set_attribute("telemetry.kind", "class")
+                        user_id = get_user_context()
+                        if user_id:
+                            span.set_attribute("user.id", user_id)
 
                         try:
                             from flask import has_request_context, request
