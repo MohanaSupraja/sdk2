@@ -1,5 +1,6 @@
 import logging
 from typing import Dict, Any, Callable, Optional
+from telemetry.utils.user_context import get_user_context
 
 logger = logging.getLogger(__name__)
 if not logger.handlers:
@@ -74,6 +75,7 @@ class MetricsManager:
                        unit: Optional[str]):
 
         existing = self._instruments.get(name)
+        user_id = get_user_context()
         if existing and not self._is_noop(existing):
             return existing
 
@@ -98,7 +100,7 @@ class MetricsManager:
                 if inst_type in creator_map:
                     inst = creator_map[inst_type](name, **kwargs)
                     self._instruments[name] = inst
-                    logger.info("Created real %s '%s'", inst_type, name)
+                    # logger.info("Created real %s '%s'", inst_type, name)
                     return inst
 
         except Exception as e:
@@ -123,8 +125,14 @@ class MetricsManager:
 
     def increment_counter(self, name: str, value: float = 1.0, attributes: Dict[str, Any] = None):
         inst = self._get_or_create(name, "counter", description="", unit="")
+        
         try:
-            inst.add(value, attributes or {})
+            attrs = attributes or {}
+            user_id = get_user_context()
+            if user_id:
+                attrs = dict(attrs)
+                attrs["user.id"] = user_id
+            inst.add(value, attrs)
         except Exception:
             logger.debug("Error incrementing counter '%s'", name, exc_info=True)
 
@@ -136,7 +144,12 @@ class MetricsManager:
     def add_updown(self, name: str, value: float = 1.0, attributes: Dict[str, Any] = None):
         inst = self._get_or_create(name, "updown", description="", unit="")
         try:
-            inst.add(value, attributes or {})
+            attrs = attributes or {}
+            user_id = get_user_context()
+            if user_id:
+                attrs = dict(attrs)
+                attrs["user.id"] = user_id
+            inst.add(value, attrs)
         except Exception:
             logger.debug("Error updating updown counter '%s'", name, exc_info=True)
 
@@ -148,7 +161,13 @@ class MetricsManager:
     def record_histogram(self, name: str, value: float, attributes: Dict[str, Any] = None, unit=None):
         inst = self._get_or_create(name, "histogram", description="", unit=unit)
         try:
-            inst.record(value, attributes or {})
+            attrs = attributes or {}
+            user_id = get_user_context()
+            if user_id:
+                attrs = dict(attrs)
+                attrs["user.id"] = user_id
+
+            inst.record(value, attrs)
         except Exception:
             logger.debug("Error recording histogram '%s'", name, exc_info=True)
 
@@ -180,7 +199,7 @@ class MetricsManager:
 
                 self._instruments[name] = observable
                 self._observable_callbacks[name] = callback
-                logger.info("Created observable %s '%s'", inst_type, name)
+                # logger.info("Created observable %s '%s'", inst_type, name)
                 return observable
 
         except Exception as e:

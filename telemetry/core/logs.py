@@ -5,7 +5,7 @@ from enum import Enum
 import socket
 import time
 import random
-
+from telemetry.utils.user_context import get_user_context
 # Correct imports for OTel 1.19.0
 from opentelemetry._logs import SeverityNumber, set_logger_provider
 from opentelemetry.sdk._logs import LoggerProvider
@@ -153,7 +153,12 @@ class LogsManager:
         attributes = self._mask(attributes)
         attributes.update(self._get_trace_context())
         attributes.update(self._extra_context())
-
+        try:
+            user_id = get_user_context()
+            if user_id:
+                attributes["user.id"] = user_id
+        except Exception:
+            pass
         severity = {
             LogLevel.DEBUG: SeverityNumber.DEBUG,
             LogLevel.INFO: SeverityNumber.INFO,
