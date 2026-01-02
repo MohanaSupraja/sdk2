@@ -2,13 +2,41 @@ import logging
 import sys
 from typing import Any
 
+from telemetry.utils.user_context import get_user_context
+
 logger = logging.getLogger(__name__)
+
+
+# ------------------------------------------------------------
+# Span Processor to inject user.id into ALL framework spans
+# ------------------------------------------------------------
+class UserContextSpanProcessor:
+    def on_start(self, span, parent_context=None):
+        try:
+            user_id = get_user_context()
+            if user_id and span is not None:
+                span.set_attribute("user.id", user_id)
+        except Exception:
+            pass
+
+    def on_end(self, span):
+        pass
 
 
 class FrameworkInstrumentor:
     def __init__(self, telemetry):
         self.telemetry = telemetry
         self._instrumented_apps = {}  # app id -> framework name
+
+        # ----------------------------------------------------
+        # 🔥 Register span processor ONCE
+        # ----------------------------------------------------
+        try:
+            tracer_provider = getattr(self.telemetry.traces, "tracer_provider", None)
+            if tracer_provider:
+                tracer_provider.add_span_processor(UserContextSpanProcessor())
+        except Exception:
+            logger.debug("Failed to register UserContextSpanProcessor", exc_info=True)
 
     def instrument_app(self, app: Any, framework: str = None) -> bool:
         try:
@@ -64,13 +92,12 @@ class FrameworkInstrumentor:
 
             return False
 
-        except Exception as e:
+        except Exception:
             logger.exception("Framework instrumentation failed")
             return False
 
-
     # ---------------------------------------------------------------------
-    # 5) UN-INSTRUMENTATION (best-effort)
+    # UN-INSTRUMENTATION (best-effort)
     # ---------------------------------------------------------------------
     def uninstrument_app(self, app: Any) -> bool:
         try:
@@ -80,7 +107,6 @@ class FrameworkInstrumentor:
             if not framework:
                 return False
 
-            # Flask
             if framework == "flask":
                 try:
                     from opentelemetry.instrumentation.flask import FlaskInstrumentor
@@ -92,12 +118,10 @@ class FrameworkInstrumentor:
                     logger.debug("Flask uninstrumentation failed.", exc_info=True)
                     return False
 
-            # FastAPI / Starlette
             if framework in ("fastapi", "starlette"):
                 logger.debug("FastAPI/Starlette runtime uninstrumentation not supported.")
                 return False
 
-            # Django
             if framework == "django":
                 logger.debug("Django cannot be uninstrumented at runtime.")
                 return False
