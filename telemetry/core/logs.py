@@ -150,7 +150,6 @@ class LogsManager:
             return  # sampled out
 
         attributes = attributes or {}
-        attributes = self._mask(attributes)
         attributes.update(self._get_trace_context())
         attributes.update(self._extra_context())
         try:
@@ -181,7 +180,7 @@ class LogsManager:
                 return
             except Exception:
                 pass
-
+        attributes = self._mask(attributes)
         # Python fallback
         getattr(self.python_logger, level.value.lower(), self.python_logger.info)(
             message, extra={"otel": attributes}

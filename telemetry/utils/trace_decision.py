@@ -2,6 +2,12 @@ import fnmatch
 
 
 def should_trace(telemetry, ctx):
+    """
+    NOTE:
+    - HTTP route filtering is handled at framework instrumentation level
+      (e.g., FlaskInstrumentor excluded_urls)
+    - This function applies only to business-layer spans
+    """
     if not getattr(telemetry, "enable_traces", False):
         return False
 
