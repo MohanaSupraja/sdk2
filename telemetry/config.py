@@ -18,8 +18,8 @@ class TelemetryConfig:
 
     
     # OTLP EXPORTER SETTINGS
-    
-    collector_endpoint: Optional[str] = None
+
+    collector_endpoint: str = "http://otel-collector:4318"
     protocol: str = "http/protobuf"         # {"http/protobuf", "grpc"}
     headers: Dict[str, str] = field(default_factory=dict)
     insecure: bool = True                    # Only for gRPC

@@ -319,7 +319,7 @@ def setup_otel(config: TelemetryConfig) -> Dict[str, Any]:
             logger.exception("Metric setup failed")
 
     # =========================================================
-    # LOGS  🔥 THIS IS THE CRITICAL PART
+    # LOGS THIS IS THE CRITICAL PART
     # =========================================================
     if config.enable_logs:
         try:
@@ -334,10 +334,10 @@ def setup_otel(config: TelemetryConfig) -> Dict[str, Any]:
                 BatchLogRecordProcessor(log_exporter)
             )
 
-            # 🔥 REQUIRED: register provider globally
+            #  REQUIRED: register provider globally
             set_logger_provider(logger_provider)
 
-            # 🔥 REQUIRED: attach handler to Python logging
+            # REQUIRED: attach handler to Python logging
             handler = LoggingHandler(
                 level=logging.NOTSET,
                 logger_provider=logger_provider,

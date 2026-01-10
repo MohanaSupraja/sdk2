@@ -29,7 +29,7 @@ class FrameworkInstrumentor:
         self._instrumented_apps = {}  # app id -> framework name
 
         # ----------------------------------------------------
-        # 🔥 Register span processor ONCE
+        #  Register span processor ONCE
         # ----------------------------------------------------
         try:
             tracer_provider = getattr(self.telemetry.traces, "tracer_provider", None)
