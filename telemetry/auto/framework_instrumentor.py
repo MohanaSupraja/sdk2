@@ -2,7 +2,8 @@ import logging
 import sys
 from typing import Any
 
-from telemetry.utils.user_context import get_user_context
+# from telemetry.utils.user_context import get_user_context
+from sify.aiplatform.observability.openTelemetry.utils.user_context import get_user_context
 
 logger = logging.getLogger(__name__)
 
