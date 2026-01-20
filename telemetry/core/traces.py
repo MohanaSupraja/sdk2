@@ -1,6 +1,7 @@
 from typing import Dict, Any, Optional
 from contextlib import contextmanager
-from telemetry.utils.user_context import get_user_context   # ✅ already present
+# from telemetry.utils.user_context import get_user_context   # ✅ already present
+from sify.aiplatform.observability.openTelemetry.utils.user_context import get_user_context
 
 try:
     from opentelemetry import trace
