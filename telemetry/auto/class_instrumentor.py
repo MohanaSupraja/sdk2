@@ -4,9 +4,10 @@ import logging
 import time
 from opentelemetry.trace import StatusCode
 
-from sify.aiplatform.observability.openTelemetry.utils.trace_decision import should_trace
-# from telemetry.utils.user_context import get_user_context
-from sify.aiplatform.observability.openTelemetry.utils.user_context import get_user_context
+# from sify.aiplatform.observability.openTelemetry.utils.trace_decision import should_trace
+from telemetry.utils.user_context import get_user_context
+from telemetry.utils.trace_decision import should_trace
+# from sify.aiplatform.observability.openTelemetry.utils.user_context import get_user_context
 
 logger = logging.getLogger(__name__)
 
